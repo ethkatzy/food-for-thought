@@ -6,12 +6,12 @@ It's a recipe recommender. You give it a food.com user id, it looks at that
 user's past recipe ratings and returns a personalized top-25 (well, top-10
 shown) list of recipes they haven't rated yet, ranked by predicted score.
 
-## How it works (`website.py`)
+## How it works (`app.py`)
 
 Data loaded at startup:
-- `interactions_processed.csv` — user_id, recipe_id, rating (past ratings)
-- `recipes_improved.csv` — recipe id, name, ingredient ids, tag ids
-- `recipes_processed_key.json` — lookup tables mapping ingredient/tag ids to names
+- `data/interactions_processed.csv` — user_id, recipe_id, rating (past ratings)
+- `data/recipes_improved.csv` — recipe id, name, ingredient ids, tag ids
+- `data/recipes_processed_key.json` — lookup tables mapping ingredient/tag ids to names
 
 Pipeline:
 1. **`parseReviews(userID, ...)`** — pulls all of that user's rated recipes,

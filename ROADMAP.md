@@ -4,18 +4,18 @@ Goal: turn this from a two-year-old university project into something a stranger
 (recruiter, other dev) can open, understand in five minutes, and actually try.
 
 Current state, for reference:
-- `website.py` is the live app: loads three data files, builds
+- `app.py` is the live app: loads three data files, builds
   per-user ingredient/tag preference vectors, exposes `/` (a raw inline HTML
   form) and `/process` (returns JSON) on port 5002.
 - Data files are large and committed straight into git with no `.gitignore`:
-  `interactions_processed.csv` (18MB, ~1.07M rows), `recipes_improved.csv`
-  (40MB, ~232k rows), `recipes_processed_key.json` (76KB).
+  `data/interactions_processed.csv` (18MB, ~1.07M rows), `data/recipes_improved.csv`
+  (40MB, ~232k rows), `data/recipes_processed_key.json` (76KB).
 - ~~Five near-duplicate notebooks in `optimized models/` (`recommendation
   system1.ipynb` → `1.3.1.1.ipynb`), plus two `Food_for_thought_website*.ipynb`
   notebooks~~ — resolved, see §0/§1 below. `preprocessing/` and `graphs/`
   notebooks remain.
 - `README.md` now has rough working notes on what the recommender does and
-  how (`website.py`'s pipeline), still needs a proper pass. No license, no
+  how (`app.py`'s pipeline), still needs a proper pass. No license, no
   `requirements.txt`, no tests, no CI.
 
 ---
@@ -30,24 +30,24 @@ don't remember.
       Done: `1` (ingredients only, unnormalized) → `1.2` (adds tags, slow
       loop-based) → `1.3` (dense NumPy matrix, vectorized, fast) → `1.3.1`
       (float32 dtype tweak) → `1.3.1.1` (transposed matrix layout). All five
-      deleted afterward — `website.py` supersedes them (see §1).
+      deleted afterward — `app.py` supersedes them (see §1).
 - [x] Diff `Food_for_thought_website.ipynb` vs `Food_for_thought_website_v2.ipynb`
-      vs `website.py` — confirm the `.py` file really is the
+      vs `app.py` — confirm the `.py` file really is the
       most recent/correct logic (CLAUDE.md flags this as unverified).
       Confirmed: v1 had a tag-count off-by-one, `uint8` overflow risk, no
       already-rated exclusion, and a redundant separate `RAW_recipes.csv`
-      load; v2 fixed all of that and matches `website.py`'s logic almost
-      exactly except v2 still used dense matrices where `website.py` uses
+      load; v2 fixed all of that and matches `app.py`'s logic almost
+      exactly except v2 still used dense matrices where `app.py` uses
       `scipy.sparse`. Both notebooks deleted (see §1).
 - [x] Trace the `preprocessing/` notebooks against the three committed data
       files — confirm which notebook produces which output file, so the
       pipeline is reconstructable later.
-      Done: `Interactions_processing.ipynb` → `interactions_processed.csv`
+      Done: `Interactions_processing.ipynb` → `data/interactions_processed.csv`
       directly (confirmed, then deleted — output already committed).
-      `tags_processing.ipynb` → very likely feeds `recipes_improved.csv`
+      `tags_preprocessing.ipynb` → very likely feeds `data/recipes_improved.csv`
       (empirically verified: none of its 49 flagged-for-removal tag ids
       appear anywhere in the committed data) — kept, moved to repo root.
-      `ingredients_first_word.ipynb` → NOT used (verified: `recipes_improved.csv`
+      `ingredients_first_word.ipynb` → NOT used (verified: `data/recipes_improved.csv`
       uses the original 3,122-entry ingredient key, not this notebook's
       consolidated vocabulary) — deleted. `preprocessing/` folder removed
       since empty.
@@ -63,26 +63,36 @@ don't remember.
 - [x] Decide which notebook in `optimized models/` is canonical. Delete or
       move the rest into an `archive/` folder (or a git tag/branch) so the
       repo doesn't look like five abandoned attempts sitting side by side.
-      Done — `website.py` is canonical, all five deleted, `optimized models/`
+      Done — `app.py` is canonical, all five deleted, `optimized models/`
       folder gone.
 - [x] Same decision for `Food_for_thought_website.ipynb` vs `_v2.ipynb` —
       likely delete both once the logic is confirmed to live in the `.py`
       file, or keep one as "exploration" and clearly label it as such.
-      Done — both deleted, logic confirmed to live in `website.py`.
-- [ ] Rename `website.py` → `app.py` (or `server.py`). Keeping
+      Done — both deleted, logic confirmed to live in `app.py`.
+- [x] Rename `app.py` → `app.py` (or `server.py`). Keeping
       a typo'd filename as "the actual name" is a fine team-only shrug; it's
       not a great first impression for an external visitor. Update CLAUDE.md
       and any references after renaming.
-- [ ] Add a `.gitignore`: `__pycache__/`, `*.pyc`, `.ruff_cache/`, `.idea/`,
+      Done — `website.py` renamed to `app.py` (staged rename), and CLAUDE.md's
+      stale "note the typo in the filename" line removed since it no longer
+      applies.
+- [x] Add a `.gitignore`: `__pycache__/`, `*.pyc`, `.ruff_cache/`, `.idea/`,
       `.ipynb_checkpoints/`. `.idea/` and `__pycache__/` are currently
       untracked-but-present in your working tree — get them out before they
       get committed by accident.
-- [ ] Decide what happens to the two large CSVs (58MB combined) — see
+      Done — `.gitignore` added at repo root with those five patterns.
+- [x] Decide what happens to the two large CSVs (58MB combined) — see
       section 4 (Data) before deciding; don't just leave them sitting in git
       history unaddressed.
-- [ ] Group loose top-level notebooks/scripts into folders consistent with
+      Done — see §4: keeping them committed as plain tracked files, license
+      confirmed to permit it.
+- [x] Group loose top-level notebooks/scripts into folders consistent with
       the existing `preprocessing/`, `graphs/`, `optimized models/` pattern
       (e.g. `app/` for the Flask code once it grows beyond one file).
+      Deferred for now — `app.py` and `tags_preprocessing.ipynb` are each
+      single files at the root; folders for one file apiece (especially
+      recreating the `preprocessing/` folder just removed) add no value.
+      Revisit if either grows.
 
 ## 2. Documentation
 
@@ -111,7 +121,7 @@ don't remember.
 ## 3. Backend / code quality
 
 Small but real correctness and robustness gaps found while reading
-`website.py`:
+`app.py`:
 
 - [ ] `generateRecommendations` divides by `nIngredients` with no
       zero-guard (only `nTags` is protected via `np.maximum(nTags, 1)`) — a
@@ -144,23 +154,30 @@ Small but real correctness and robustness gaps found while reading
 
 ## 4. Data
 
-- [ ] Check the licensing terms of the underlying Food.com dataset (this
+- [x] Check the licensing terms of the underlying Food.com dataset (this
       looks like the Kaggle "Food.com Recipes and Interactions" dataset) —
       confirm redistribution of the processed CSVs in a public repo is
       permitted before making the repo public, or before hosting them as a
       downloadable/servable artifact. If redistribution isn't clearly
       allowed, keep the raw/processed data out of the repo and document how
       to regenerate it instead.
-- [ ] Given the 58MB combined size, decide: keep the files in the repo (fine
+      Done — confirmed the license permits redistribution.
+- [x] Given the 58MB combined size, decide: keep the files in the repo (fine
       up to GitHub's 100MB/file soft limits, but bloats every clone), move
       them to Git LFS, or exclude them from git entirely and document a
       download/generation step in the README. Whichever you pick, don't
       leave the current "large binary-ish files with no `.gitignore`, no
       LFS, no explanation" state as-is.
-- [ ] If you do trim/republish the data, note that it's already in git
+      Done — keeping the files committed as plain tracked files (not LFS,
+      not excluded). Priority is a visitor being able to `git clone` and run
+      immediately with zero extra tooling/steps; the ~58MB clone cost is an
+      accepted tradeoff at this scale.
+- [x] If you do trim/republish the data, note that it's already in git
       history from earlier commits — removing it going forward doesn't
       remove it from history. Only worth rewriting history if repo size or
       the licensing question above forces it.
+      N/A — decided above to keep the data committed as-is, not trim or
+      republish it, so there's nothing to rewrite history for.
 
 ## 5. Frontend & hosting
 
