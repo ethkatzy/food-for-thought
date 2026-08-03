@@ -114,9 +114,10 @@ don't remember.
 - [ ] Add a `LICENSE` for your own code (MIT is the standard default for a
       portfolio project) — separate from the dataset's license (see below).
 - [ ] Add module/function docstrings to the recommender functions
-      (`parseReviews`, `vectorizeRecipes`, `generateRecommendations`) — short,
-      explaining the *why* (e.g. why incremental mean rather than a stored
-      sum) not just restating the code.
+      (`parseReviews` and `generateRecommendations` in `app.py`,
+      `vectorizeRecipes` in `recipe_vectors.py`) — short, explaining the
+      *why* (e.g. why incremental mean rather than a stored sum) not just
+      restating the code.
 
 ## 3. Backend / code quality
 
@@ -182,10 +183,14 @@ request after idling) — acceptable for a portfolio project, revisit
 - [ ] Add basic loading/error states in the frontend (backend cold-start,
       invalid/unknown user ID, no recommendations available).
 - [ ] Set up the actual Render deployment (see §5b below for steps).
-- [ ] Confirm the recommender's current in-memory, load-everything-at-import
+- [x] Confirm the recommender's current in-memory, load-everything-at-import
       approach fits comfortably in Render's free-tier RAM limit, or switch to
-      precomputed/cached vectors if it doesn't (see the lazy-loading item in
-      §5c).
+      precomputed/cached vectors if it doesn't (see the caching item in §5c).
+      Done — `vectorizeRecipes` and the `url` column are now precomputed
+      offline by `build_recipe_vectors.py` into `data/recipes_vectors.pkl`,
+      which `app.py` just loads at import. Startup dropped from ~30s+ to
+      ~3.5s; RAM footprint at import is now dominated by the CSVs and the
+      pickled sparse matrices rather than a transient Python-list build.
 
 ### 5b. Render deployment steps
 
@@ -199,10 +204,20 @@ request after idling) — acceptable for a portfolio project, revisit
       a connected GitHub repo, no separate CI config needed.
 - [ ] In the Render dashboard: New → Web Service → connect the GitHub repo.
 - [ ] Set the **Build Command** to `pip install -r requirements.txt`.
-- [ ] Set the **Start Command** to `gunicorn app:app --bind 0.0.0.0:$PORT`
-      (production WSGI server — don't rely on Flask's dev server /
-      `app.run()` in production; gunicorn needs the explicit `--bind` since
-      it doesn't read `$PORT` on its own).
+- [ ] Set the **Start Command** to
+      `gunicorn app:app --bind 0.0.0.0:$PORT` (production WSGI server —
+      don't rely on Flask's dev server / `app.run()` in production; gunicorn
+      needs the explicit `--bind` since it doesn't read `$PORT` on its own).
+      A `--timeout` bump is no longer required for worker boot: module-level
+      import used to do a 40MB CSV read plus a plain Python loop over ~232k
+      recipes in `vectorizeRecipes`, which could take well past gunicorn's
+      default 30s worker-boot timeout on free-tier CPU (Render would report
+      "no open ports detected" forever because every worker got killed
+      mid-boot before it bound). That work is now precomputed offline into
+      `data/recipes_vectors.pkl` (see §5a), so import is down to ~3.5s —
+      comfortably under the default 30s. If free-tier CPU still runs slower
+      than expected in practice, `--timeout 60` is a cheap safety margin to
+      add back, but it shouldn't be needed.
 - [ ] Choose the **Free** instance type to start.
 - [ ] Deploy, then verify the live URL loads `/` and that submitting a user
       ID on `/process` returns recommendations (watch for the cold-start
@@ -229,10 +244,14 @@ handlers, and may be moot or need re-evaluating once the real frontend
       consumed by a new frontend, but will need restructuring into a proper
       JSON schema (list of `{id, name, score, url}` objects) for anything to
       consume it cleanly.
-- [ ] Consider whether `recipesV` (built once at import time over all 232k
+- [x] Consider whether `recipesV` (built once at import time over all 232k
       recipes) and the two large DataFrames should be lazily loaded / cached
       rather than loaded at import — matters more once this is deployed
       somewhere with limited memory (see hosting section above).
+      Done for `recipesV` and the `url` column — see §5a. The two source
+      DataFrames (`interactions`, `recipes`) still load fully at import from
+      CSV; that's a smaller, separate cost (~1-2s) and wasn't part of this
+      pass.
 
 ## 6. Nice-to-haves (once the above is solid)
 
