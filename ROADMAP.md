@@ -167,28 +167,13 @@ Small but real correctness and robustness gaps found while reading
 
 ## 5. Frontend & hosting
 
-**Open decision, not yet settled — worth resolving before building anything
-in this section:** GitHub Pages only serves static files. It cannot run the
-Flask backend, and it can't hold ~58MB of CSV data as something a live query
-reads from. Three ways to reconcile that with "put it on GitHub Pages":
-
-1. **Static GH Pages frontend + small hosted API backend.** Real backend
-   (Render, Fly.io, Railway, Hugging Face Spaces free tier) serves
-   `/api/recommend`; a proper frontend (plain HTML/CSS/JS or a lightweight
-   React app) on GitHub Pages calls it. Most "real" result, but two things
-   to deploy and keep alive, and free-tier backends often cold-start slowly.
-2. **Fully static demo, no backend.** Precompute recommendations for a fixed
-   set of sample user IDs at build time, bake the results into static JSON,
-   serve entirely from GitHub Pages. Free forever, zero moving parts, but
-   visitors can only pick from a preset list of demo users, not type in an
-   arbitrary ID.
-3. **Single hosted app, skip GitHub Pages for the app itself.** Deploy the
-   whole thing (backend + frontend) to one platform (Render, Railway, HF
-   Spaces). Simplest infra, fully live/arbitrary-user-id, but it's not
-   literally "on GitHub Pages" — GH Pages could still host a landing
-   page/portfolio blurb that links out to it.
-
-Once that's decided:
+**Decision made:** single hosted app on **Render** — one Flask app serves
+both the frontend and the recommendation logic from the same origin
+(no GitHub Pages, no split frontend/backend, no CORS needed). Render
+connects directly to the GitHub repo and redeploys on push. Free tier is
+~512MB RAM and spins down after inactivity (30-60s cold start on the first
+request after idling) — acceptable for a portfolio project, revisit
+(paid tier, or Fly.io which doesn't sleep) only if that becomes a problem.
 
 - [ ] Build a real frontend: a form to enter/pick a user ID, a results view
       (recipe name, image if available, score, link out to food.com) instead
@@ -196,16 +181,35 @@ Once that's decided:
       elaborate for a CV project.
 - [ ] Add basic loading/error states in the frontend (backend cold-start,
       invalid/unknown user ID, no recommendations available).
-- [ ] Wire up CORS on the backend once frontend and backend are on different
-      origins.
-- [ ] Set up the actual deployment (GitHub Actions → GitHub Pages for the
-      frontend; whatever's chosen above for the backend).
-- [ ] If going the hosted-backend route, consider whether the recommender's
-      current in-memory, load-everything-at-import approach fits the host's
-      memory/free-tier limits, or whether it needs to switch to precomputed/
-      cached vectors.
+- [ ] Set up the actual Render deployment (see §5b below for steps).
+- [ ] Confirm the recommender's current in-memory, load-everything-at-import
+      approach fits comfortably in Render's free-tier RAM limit, or switch to
+      precomputed/cached vectors if it doesn't (see the lazy-loading item in
+      §5c).
 
-### 5a. `/` and `/process` items to revisit once the frontend changes
+### 5b. Render deployment steps
+
+- [x] Add a `requirements.txt` (tracked separately in §2) — Render needs this
+      to install dependencies.
+      Done — `flask`, `numpy`, `pandas`, `scipy`, `gunicorn`.
+- [x] Make sure `app.py` binds to Render's `$PORT` env var rather than the
+      hardcoded `5002`, e.g. `app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5002)))`.
+      Done.
+- [ ] Push the repo to GitHub (already done) — Render deploys straight from
+      a connected GitHub repo, no separate CI config needed.
+- [ ] In the Render dashboard: New → Web Service → connect the GitHub repo.
+- [ ] Set the **Build Command** to `pip install -r requirements.txt`.
+- [ ] Set the **Start Command** to `gunicorn app:app --bind 0.0.0.0:$PORT`
+      (production WSGI server — don't rely on Flask's dev server /
+      `app.run()` in production; gunicorn needs the explicit `--bind` since
+      it doesn't read `$PORT` on its own).
+- [ ] Choose the **Free** instance type to start.
+- [ ] Deploy, then verify the live URL loads `/` and that submitting a user
+      ID on `/process` returns recommendations (watch for the cold-start
+      delay on the first request).
+- [ ] Once confirmed working, link the live URL from `README.md`.
+
+### 5c. `/` and `/process` items to revisit once the frontend changes
 
 Moved out of §3 — these were noted against the *current* `/` and `/process`
 handlers, and may be moot or need re-evaluating once the real frontend
