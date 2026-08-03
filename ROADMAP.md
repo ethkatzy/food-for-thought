@@ -15,7 +15,7 @@ Current state, for reference:
   notebooks~~ — resolved, see §0/§1 below. `preprocessing/` and `graphs/`
   notebooks remain.
 - `README.md` now has rough working notes on what the recommender does and
-  how (`app.py`'s pipeline), still needs a proper pass. No license, no
+  how (`app.py`'s pipeline), still needs a proper pass. No licence, no
   `requirements.txt`, no tests, no CI.
 
 ---
@@ -27,8 +27,8 @@ don't remember.
 
 - [x] Open each notebook in `optimized models/` and note, per file: what it
       changed vs. the previous version, and whether it still runs top-to-bottom.
-      Done: `1` (ingredients only, unnormalized) → `1.2` (adds tags, slow
-      loop-based) → `1.3` (dense NumPy matrix, vectorized, fast) → `1.3.1`
+      Done: `1` (ingredients only, unnormalised) → `1.2` (adds tags, slow
+      loop-based) → `1.3` (dense NumPy matrix, vectorised, fast) → `1.3.1`
       (float32 dtype tweak) → `1.3.1.1` (transposed matrix layout). All five
       deleted afterward — `app.py` supersedes them (see §1).
 - [x] Diff `Food_for_thought_website.ipynb` vs `Food_for_thought_website_v2.ipynb`
@@ -44,7 +44,7 @@ don't remember.
       pipeline is reconstructable later.
       Done: `Interactions_processing.ipynb` → `data/interactions_processed.csv`
       directly (confirmed, then deleted — output already committed).
-      `tags_preprocessing.ipynb` → very likely feeds `data/recipes_improved.csv`
+      `preprocessing/tags_preprocessing.ipynb` → very likely feeds `data/recipes_improved.csv`
       (empirically verified: none of its 49 flagged-for-removal tag ids
       appear anywhere in the committed data) — kept, moved to repo root.
       `ingredients_first_word.ipynb` → NOT used (verified: `data/recipes_improved.csv`
@@ -58,7 +58,7 @@ don't remember.
       write-up.
       Done — rough notes now in `README.md` (still needs a polish pass, see §2).
 
-## 1. File cleanup
+## 1. File clean-up
 
 - [x] Decide which notebook in `optimized models/` is canonical. Delete or
       move the rest into an `archive/` folder (or a git tag/branch) so the
@@ -84,12 +84,12 @@ don't remember.
 - [x] Decide what happens to the two large CSVs (58MB combined) — see
       section 4 (Data) before deciding; don't just leave them sitting in git
       history unaddressed.
-      Done — see §4: keeping them committed as plain tracked files, license
+      Done — see §4: keeping them committed as plain tracked files, licence
       confirmed to permit it.
 - [x] Group loose top-level notebooks/scripts into folders consistent with
       the existing `preprocessing/`, `graphs/`, `optimized models/` pattern
       (e.g. `app/` for the Flask code once it grows beyond one file).
-      Deferred for now — `app.py` and `tags_preprocessing.ipynb` are each
+      Deferred for now — `app.py` and `preprocessing/tags_preprocessing.ipynb` are each
       single files at the root; folders for one file apiece (especially
       recreating the `preprocessing/` folder just removed) add no value.
       Revisit if either grows.
@@ -112,7 +112,7 @@ don't remember.
       `flask`, and anything the frontend build needs. CLAUDE.md notes none
       exists today.
 - [ ] Add a `LICENSE` for your own code (MIT is the standard default for a
-      portfolio project) — separate from the dataset's license (see below).
+      portfolio project) — separate from the dataset's licence (see below).
 - [ ] Add module/function docstrings to the recommender functions
       (`parseReviews` and `generateRecommendations` in `app.py`,
       `vectorizeRecipes` in `recipe_vectors.py`) — short, explaining the
@@ -145,10 +145,10 @@ Small but real correctness and robustness gaps found while reading
       looks like the Kaggle "Food.com Recipes and Interactions" dataset) —
       confirm redistribution of the processed CSVs in a public repo is
       permitted before making the repo public, or before hosting them as a
-      downloadable/servable artifact. If redistribution isn't clearly
+      downloadable/servable artefact. If redistribution isn't clearly
       allowed, keep the raw/processed data out of the repo and document how
       to regenerate it instead.
-      Done — confirmed the license permits redistribution.
+      Done — confirmed the licence permits redistribution.
 - [x] Given the 58MB combined size, decide: keep the files in the repo (fine
       up to GitHub's 100MB/file soft limits, but bloats every clone), move
       them to Git LFS, or exclude them from git entirely and document a
@@ -176,13 +176,24 @@ connects directly to the GitHub repo and redeploys on push. Free tier is
 request after idling) — acceptable for a portfolio project, revisit
 (paid tier, or Fly.io which doesn't sleep) only if that becomes a problem.
 
-- [ ] Build a real frontend: a form to enter/pick a user ID, a results view
+- [x] Build a real frontend: a form to enter/pick a user ID, a results view
       (recipe name, image if available, score, link out to food.com) instead
       of raw JSON. Doesn't need to be fancy — clean and legible beats
       elaborate for a CV project.
-- [ ] Add basic loading/error states in the frontend (backend cold-start,
+      Done — `templates/index.html` + `static/{style.css,app.js}`. Form
+      posts to `/process` via `fetch`, results render as a card grid (rank,
+      image, star rating, name, link out). `/process` scrapes each
+      recommended recipe's food.com page for its `og:image` meta tag
+      (in-memory cache keyed by recipe id, since recipes recur across users'
+      recommendations) and falls back to a plain icon when a recipe has no
+      photo of its own (food.com serves a generic share-card graphic in that
+      case — detected and treated as "no image" rather than shown).
+- [x] Add basic loading/error states in the frontend (backend cold-start,
       invalid/unknown user ID, no recommendations available).
-- [ ] Set up the actual Render deployment (see §5b below for steps).
+      Done — spinner while `/process` is in flight (message upgrades to a
+      cold-start notice after 4s), red banner for server-side errors, and an
+      empty-state message when a user has zero recommendations.
+- [x] Set up the actual Render deployment (see §5b below for steps).
 - [x] Confirm the recommender's current in-memory, load-everything-at-import
       approach fits comfortably in Render's free-tier RAM limit, or switch to
       precomputed/cached vectors if it doesn't (see the caching item in §5c).
@@ -200,11 +211,11 @@ request after idling) — acceptable for a portfolio project, revisit
 - [x] Make sure `app.py` binds to Render's `$PORT` env var rather than the
       hardcoded `5002`, e.g. `app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5002)))`.
       Done.
-- [ ] Push the repo to GitHub (already done) — Render deploys straight from
+- [x] Push the repo to GitHub (already done) — Render deploys straight from
       a connected GitHub repo, no separate CI config needed.
-- [ ] In the Render dashboard: New → Web Service → connect the GitHub repo.
-- [ ] Set the **Build Command** to `pip install -r requirements.txt`.
-- [ ] Set the **Start Command** to
+- [x] In the Render dashboard: New → Web Service → connect the GitHub repo.
+- [x] Set the **Build Command** to `pip install -r requirements.txt`.
+- [x] Set the **Start Command** to
       `gunicorn app:app --bind 0.0.0.0:$PORT` (production WSGI server —
       don't rely on Flask's dev server / `app.run()` in production; gunicorn
       needs the explicit `--bind` since it doesn't read `$PORT` on its own).
@@ -218,11 +229,12 @@ request after idling) — acceptable for a portfolio project, revisit
       comfortably under the default 30s. If free-tier CPU still runs slower
       than expected in practice, `--timeout 60` is a cheap safety margin to
       add back, but it shouldn't be needed.
-- [ ] Choose the **Free** instance type to start.
-- [ ] Deploy, then verify the live URL loads `/` and that submitting a user
+- [x] Choose the **Free** instance type to start.
+- [x] Deploy, then verify the live URL loads `/` and that submitting a user
       ID on `/process` returns recommendations (watch for the cold-start
       delay on the first request).
-- [ ] Once confirmed working, link the live URL from `README.md`.
+- [x] Once confirmed working, link the live URL from `README.md`.
+      Done — https://food-for-thought-b8ur.onrender.com/
 
 ### 5c. `/` and `/process` items to revisit once the frontend changes
 
@@ -230,20 +242,26 @@ Moved out of §3 — these were noted against the *current* `/` and `/process`
 handlers, and may be moot or need re-evaluating once the real frontend
 (above) replaces them.
 
-- [ ] `/process` does zero input validation: a non-numeric `user_id`, a
+- [x] `/process` does zero input validation: a non-numeric `user_id`, a
       `user_id` with no interactions, or a user with fewer than 10 candidate
       recommendations will throw an unhandled exception (the `result` loop
       hardcodes `range(10)` against a list that isn't guaranteed to have 10
       items) and return a raw Flask 500 page.
-- [ ] `/` returns a hardcoded HTML string instead of `render_template` (a
+      Done — non-numeric/missing/out-of-range `user_id` returns a 400 with a
+      JSON `{error}` body instead of a 500; the top-10 slice is now
+      `personalRecommendations[:10]`, which degrades to fewer (or zero)
+      items instead of raising `IndexError`.
+- [x] `/` returns a hardcoded HTML string instead of `render_template` (a
       `templates/` folder is imported via `render_template` but doesn't
       exist) — becomes moot once there's a real frontend, but worth knowing
       the current handler is dead-code-adjacent.
-- [ ] `/process` returns JSON only, with recommendation scores and URLs
+      Done — `/` now renders `templates/index.html`.
+- [x] `/process` returns JSON only, with recommendation scores and URLs
       baked into a single formatted string per item — fine for a JSON API
       consumed by a new frontend, but will need restructuring into a proper
       JSON schema (list of `{id, name, score, url}` objects) for anything to
       consume it cleanly.
+      Done — now `{"recommendations": [{id, name, score, url, image}, ...]}`.
 - [x] Consider whether `recipesV` (built once at import time over all 232k
       recipes) and the two large DataFrames should be lazily loaded / cached
       rather than loaded at import — matters more once this is deployed

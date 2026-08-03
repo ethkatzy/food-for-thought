@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Food for Thought — Recipe Recommendations</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main>
+        <header class="page-header">
+            <h1>Food for Thought</h1>
+            <p class="subtitle">Enter a user ID to get personalised recipe recommendations, built from that
+                user's Food.com rating history.</p>
+        </header>
+
+        <form id="user-form" class="user-form">
+            <label for="user_id">User ID ({{ min_user_id }}&ndash;{{ max_user_id }})</label>
+            <div class="user-form-row">
+                <input
+                    type="number"
+                    id="user_id"
+                    name="user_id"
+                    min="{{ min_user_id }}"
+                    max="{{ max_user_id }}"
+                    placeholder="e.g. {{ min_user_id }}"
+                    required
+                >
+                <button type="submit" id="submit-btn">Get recommendations</button>
+            </div>
+        </form>
+
+        <div id="status" class="status" hidden></div>
+
+        <div id="legend" class="legend" hidden>
+            <span class="legend-item">
+                <span class="legend-icons dot-row">
+                    <span class="dot dot-filled"></span><span class="dot dot-filled"></span><span class="dot dot-filled"></span><span class="dot dot-filled"></span><span class="dot dot-filled"></span>
+                </span>
+                <strong>Match score</strong>&nbsp;&mdash; how well a recipe fits this user's taste profile
+            </span>
+            <span class="legend-item">
+                <span class="legend-icons star-icons">&#9733;&#9733;&#9733;&#9733;&#9733;</span>
+                <strong>Food.com rating</strong>&nbsp;&mdash; the recipe's actual rating on Food.com
+            </span>
+        </div>
+
+        <section id="results" class="results-grid" hidden></section>
+
+        <section id="rated-section" class="rated-section" hidden>
+            <h2>Recipes rated by this user</h2>
+            <p id="rated-subtitle" class="rated-subtitle"></p>
+            <div class="rated-table-wrap">
+                <table class="rated-table">
+                    <thead>
+                        <tr>
+                            <th>Recipe</th>
+                            <th>User's Rating</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rated-table-body"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <template id="card-template">
+        <article class="card">
+            <div class="card-image-wrap">
+                <img class="card-image" alt="">
+                <div class="card-image-fallback" hidden>
+                    <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+                        <path fill="currentColor" d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.98V22h2.5v-9.02
+                            C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z"/>
+                    </svg>
+                </div>
+                <span class="card-rank"></span>
+            </div>
+            <div class="card-body">
+                <h3 class="card-title"></h3>
+                <div class="card-metric match-metric">
+                    <span class="metric-icons dot-row"></span>
+                    <span class="metric-text"></span>
+                </div>
+                <div class="card-metric foodcom-metric">
+                    <span class="metric-icons"></span>
+                    <span class="metric-text"></span>
+                </div>
+                <a class="card-link" target="_blank" rel="noopener noreferrer">View on Food.com &#8599;</a>
+            </div>
+        </article>
+    </template>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

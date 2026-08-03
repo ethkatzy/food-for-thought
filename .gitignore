@@ -3,3 +3,4 @@ __pycache__/
 .ruff_cache/
 .idea/
 .ipynb_checkpoints/
+.claude/settings.local.json

@@ -1,9 +1,14 @@
+import html
 import json
 import os
 import pickle
+import re
+import urllib.error
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, render_template, request
 
 from recipe_vectors import load_raw_data
 
@@ -25,6 +30,29 @@ recipesV = (_cache["ingredient_matrix"], _cache["tag_matrix"], _cache["nIngredie
 
 recipeNameByID = dict(zip(recipes["id"], recipes["name"]))
 recipeUrlByID = dict(zip(recipes["id"], recipes["url"]))
+
+MIN_USER_ID = int(interactions["user_id"].min())
+MAX_USER_ID = int(interactions["user_id"].max())
+
+# Neither a recipe's image nor its real food.com rating is in our dataset,
+# so we scrape each recipe's food.com page on first request (og:image meta
+# tag + the aggregateRating embedded in its JSON-LD block) and cache the
+# result in memory (recipes get recommended to many users, so this pays off).
+_RECIPE_META_CACHE = {}
+_OG_IMAGE_RE = re.compile(r'name="og:image" content="([^"]+)"')
+_AGGREGATE_RATING_RE = re.compile(
+    r'"aggregateRating":\{"@type":"AggregateRating","ratingValue":"([^"]*)","reviewCount":"([^"]*)"\}'
+)
+_IMAGE_FETCH_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; FoodForThoughtBot/1.0)"}
+_IMAGE_FETCH_TIMEOUT = 5
+_PAGE_FETCH_MAX_BYTES = 2_000_000
+# Recipes with no photo of their own get food.com's generic share-card
+# graphic back from og:image instead — treat that as "no image".
+_GENERIC_IMAGE_MARKER = "fdc-shareGraphic"
+# Some users have rated thousands of recipes; cap what's sent to the
+# frontend's "recipes rated by this user" table (highest-rated first, since
+# those are what most influenced the recommendations).
+_RATED_RECIPES_LIMIT = 200
 
 
 def parseReviews(userID, interactions, recipes, ingredients, tags):
@@ -68,38 +96,101 @@ def generateRecommendations(userID, recipes, personalIngredients, personalTags, 
     return l
 
 
+def getRatedRecipes(userID):
+    userRatings = interactions[interactions["user_id"] == userID]
+    rated = [
+        {
+            "id": int(recipeID),
+            "name": recipeNameByID.get(recipeID, "Unknown recipe"),
+            "rating": int(rating),
+            "url": recipeUrlByID.get(recipeID),
+        }
+        for recipeID, rating in zip(userRatings["recipe_id"], userRatings["rating"])
+    ]
+    rated.sort(key=lambda r: (-r["rating"], r["name"]))
+    total = len(rated)
+    return rated[:_RATED_RECIPES_LIMIT], total
+
+
+def fetchRecipeMeta(recipeID, url):
+    if recipeID in _RECIPE_META_CACHE:
+        return _RECIPE_META_CACHE[recipeID]
+
+    meta = {"image": None, "foodComRating": None, "foodComReviewCount": None}
+    try:
+        req = urllib.request.Request(url, headers=_IMAGE_FETCH_HEADERS)
+        with urllib.request.urlopen(req, timeout=_IMAGE_FETCH_TIMEOUT) as resp:
+            page = resp.read(_PAGE_FETCH_MAX_BYTES).decode("utf-8", errors="ignore")
+
+        imageMatch = _OG_IMAGE_RE.search(page)
+        if imageMatch and _GENERIC_IMAGE_MARKER not in imageMatch.group(1):
+            meta["image"] = html.unescape(imageMatch.group(1))
+
+        ratingMatch = _AGGREGATE_RATING_RE.search(page)
+        if ratingMatch:
+            try:
+                reviewCount = int(ratingMatch.group(2))
+                if reviewCount > 0:
+                    meta["foodComRating"] = float(ratingMatch.group(1))
+                    meta["foodComReviewCount"] = reviewCount
+            except ValueError:
+                pass
+    except (urllib.error.URLError, OSError, TimeoutError):
+        pass
+
+    _RECIPE_META_CACHE[recipeID] = meta
+    return meta
+
+
+def fetchRecipeMetas(recommendations):
+    uncached = [id for id, _score in recommendations if id not in _RECIPE_META_CACHE]
+    if uncached:
+        with ThreadPoolExecutor(max_workers=min(10, len(uncached))) as executor:
+            list(executor.map(lambda id: fetchRecipeMeta(id, recipeUrlByID[id]), uncached))
+    return {id: _RECIPE_META_CACHE.get(id, {}) for id, _score in recommendations}
+
+
 app = Flask(__name__)
 
 
 @app.route('/')
 def index():
-    return '''
-    <html>
-        <body>
-            <h1>Enter User ID</h1>
-            <form id="userForm" method="POST" action="/process">
-                <label for="user_id">User ID:</label>
-                <input type="text" id="user_id" name="user_id" required>
-                <button type="submit">Submit</button>
-            </form>
-        </body>
-    </html>
-    '''
+    return render_template('index.html', min_user_id=MIN_USER_ID, max_user_id=MAX_USER_ID)
 
 
 @app.route('/process', methods=['POST'])
 def process():
-    user = request.form['user_id']
-    personalV = parseReviews(int(user), interactions, recipes, ingredients, tags)
-    personalRecommendations = generateRecommendations(int(user), recipes, personalV[0], personalV[1], recipesV[0],
+    user = request.form.get('user_id', '').strip()
+    try:
+        userID = int(user)
+    except ValueError:
+        return jsonify({'error': f'User ID must be an integer between {MIN_USER_ID} and {MAX_USER_ID}.'}), 400
+    if not (MIN_USER_ID <= userID <= MAX_USER_ID):
+        return jsonify({'error': f'User ID must be between {MIN_USER_ID} and {MAX_USER_ID}.'}), 400
+
+    personalV = parseReviews(userID, interactions, recipes, ingredients, tags)
+    personalRecommendations = generateRecommendations(userID, recipes, personalV[0], personalV[1], recipesV[0],
                                                       recipesV[1], recipesV[2], recipesV[3])
-    result = []
-    for i in range(10):
-        id = personalRecommendations[i][0]
-        result.append(str(i + 1) + ': ' + recipeNameByID[id] + ',    score: ' + str(
-            personalRecommendations[i][1]) +
-                      ',    url: ' + recipeUrlByID[id])
-    return jsonify({'Top recommendations': result})
+    top = personalRecommendations[:10]
+    metas = fetchRecipeMetas(top)
+    result = [
+        {
+            'id': int(id),
+            'name': recipeNameByID[id],
+            'score': round(float(score), 2),
+            'url': recipeUrlByID[id],
+            'image': metas.get(id, {}).get('image'),
+            'foodComRating': metas.get(id, {}).get('foodComRating'),
+            'foodComReviewCount': metas.get(id, {}).get('foodComReviewCount'),
+        }
+        for id, score in top
+    ]
+    ratedRecipes, ratedRecipesTotal = getRatedRecipes(userID)
+    return jsonify({
+        'recommendations': result,
+        'ratedRecipes': ratedRecipes,
+        'ratedRecipesTotal': ratedRecipesTotal,
+    })
 
 
 def run_app():
