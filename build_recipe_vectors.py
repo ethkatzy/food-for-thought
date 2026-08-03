@@ -7,7 +7,9 @@ CACHE_PATH = "data/recipes_vectors.pkl"
 
 def main():
     interactions, recipes, ingredients, tags = load_raw_data()
-    ingredient_matrix, tag_matrix, nIngredients, nTags = vectorizeRecipes(recipes, ingredients, tags)
+    ingredient_matrix, tag_matrix, nIngredients, nTags = vectorizeRecipes(
+        recipes, ingredients, tags
+    )
     url = build_urls(recipes)
 
     cache = {

@@ -118,6 +118,12 @@ don't remember.
       `vectorizeRecipes` in `recipe_vectors.py`) — short, explaining the
       *why* (e.g. why incremental mean rather than a stored sum) not just
       restating the code.
+- [ ] Show a couple of the `graphs/` charts in the README as "what we found
+  in EDA" — they're already made, just not surfaced anywhere outside the
+  notebook.
+- [ ] A short "how the model was built" write-up (even a paragraph) linking
+  to the preprocessing/model-iteration notebooks, for anyone who wants to
+  go deeper than the README summary.
 
 ## 3. Backend / code quality
 
@@ -273,14 +279,30 @@ handlers, and may be moot or need re-evaluating once the real frontend
 
 ## 6. Nice-to-haves (once the above is solid)
 
-- [ ] A handful of automated tests around `parseReviews` /
+- [x] A handful of automated tests around `parseReviews` /
       `generateRecommendations` with small synthetic data — mainly to catch
       the zero-division and missing-user edge cases from section 3.
-- [ ] A minimal CI workflow (lint + tests) via GitHub Actions — also doubles
+      Done — `tests/test_recommender.py` (pytest), with synthetic
+      DataFrames/sparse matrices so the tests don't depend on real user data.
+      Covers: incremental-mean correctness in `parseReviews`, a user with no
+      interactions returning zero vectors instead of crashing, recipes with
+      zero ingredients/zero tags not producing NaN/inf in
+      `generateRecommendations` (regression test for the §3 zero-division
+      fix), already-rated recipes being excluded, results being ranked
+      highest-first, and the 25-recommendation cap. `tests/conftest.py`
+      imports the real `app.py` once per session (so it's exercised against
+      the actual committed data files) and individual tests call the two
+      functions directly with their own small synthetic inputs.
+- [x] A minimal CI workflow (lint + tests) via GitHub Actions — also doubles
       as something recruiters glance at on the repo's Actions tab.
-- [ ] Show a couple of the `graphs/` charts in the README as "what we found
-      in EDA" — they're already made, just not surfaced anywhere outside the
-      notebook.
-- [ ] A short "how the model was built" write-up (even a paragraph) linking
-      to the preprocessing/model-iteration notebooks, for anyone who wants to
-      go deeper than the README summary.
+      Done — `.github/workflows/ci.yml` runs `ruff check .` then
+      `pytest tests/ -v` on every push/PR to `main`. Added
+      `requirements-dev.txt` (extends `requirements.txt` with `pytest` and
+      `ruff`) so prod deploys don't pull test tooling. Along the way, fixed
+      the pre-existing `ruff check .` failures in `app.py` (line length,
+      an ambiguous `l` variable name) and `build_recipe_vectors.py` (line
+      length) so the lint step is actually green rather than immediately
+      broken by lint debt unrelated to this task; excluded `graphs/` and
+      `preprocessing/` (exploratory notebooks) from ruff's scope in
+      `ruff.toml` since they weren't part of this cleanup pass.
+

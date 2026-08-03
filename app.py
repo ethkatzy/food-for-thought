@@ -26,7 +26,12 @@ if not np.array_equal(_cache["recipe_ids"], recipes["id"].to_numpy()):
     )
 
 recipes["url"] = _cache["url"]
-recipesV = (_cache["ingredient_matrix"], _cache["tag_matrix"], _cache["nIngredients"], _cache["nTags"])
+recipesV = (
+    _cache["ingredient_matrix"],
+    _cache["tag_matrix"],
+    _cache["nIngredients"],
+    _cache["nTags"],
+)
 
 recipeNameByID = dict(zip(recipes["id"], recipes["name"]))
 recipeUrlByID = dict(zip(recipes["id"], recipes["url"]))
@@ -79,21 +84,25 @@ def parseReviews(userID, interactions, recipes, ingredients, tags):
     return personalIngredients, personalTags
 
 
-def generateRecommendations(userID, recipes, personalIngredients, personalTags, recipeIngredientVectors,
-                            recipeTagVectors, nIngredients, nTags):
-    iRatings = recipeIngredientVectors.T.dot(personalIngredients) / np.maximum(nIngredients, np.ones(len(nIngredients), dtype=np.int64))
-    tRatings = recipeTagVectors.T.dot(personalTags) / np.maximum(nTags, np.ones(len(nTags), dtype=np.int64))
+def generateRecommendations(userID, recipes, personalIngredients, personalTags,
+                            recipeIngredientVectors, recipeTagVectors, nIngredients, nTags):
+    iRatings = recipeIngredientVectors.T.dot(personalIngredients) / np.maximum(
+        nIngredients, np.ones(len(nIngredients), dtype=np.int64)
+    )
+    tRatings = recipeTagVectors.T.dot(personalTags) / np.maximum(
+        nTags, np.ones(len(nTags), dtype=np.int64)
+    )
     ratings = (iRatings + tRatings) / 2
     recommend = np.argsort(ratings)[::-1][:25]
     alreadyRated = set(interactions.loc[interactions["user_id"] == userID, "recipe_id"])
-    l = []
+    recs = []
     for i in range(len(recommend)):
         id = recipes.loc[recommend[i], "id"]
         if id not in alreadyRated:
-            l.append((id, ratings[recommend[i]]))
-        if len(l) > 24:
-            return l
-    return l
+            recs.append((id, ratings[recommend[i]]))
+        if len(recs) > 24:
+            return recs
+    return recs
 
 
 def getRatedRecipes(userID):
@@ -164,13 +173,19 @@ def process():
     try:
         userID = int(user)
     except ValueError:
-        return jsonify({'error': f'User ID must be an integer between {MIN_USER_ID} and {MAX_USER_ID}.'}), 400
+        return jsonify({
+            'error': f'User ID must be an integer between {MIN_USER_ID} and {MAX_USER_ID}.'
+        }), 400
     if not (MIN_USER_ID <= userID <= MAX_USER_ID):
-        return jsonify({'error': f'User ID must be between {MIN_USER_ID} and {MAX_USER_ID}.'}), 400
+        return jsonify({
+            'error': f'User ID must be between {MIN_USER_ID} and {MAX_USER_ID}.'
+        }), 400
 
     personalV = parseReviews(userID, interactions, recipes, ingredients, tags)
-    personalRecommendations = generateRecommendations(userID, recipes, personalV[0], personalV[1], recipesV[0],
-                                                      recipesV[1], recipesV[2], recipesV[3])
+    personalRecommendations = generateRecommendations(
+        userID, recipes, personalV[0], personalV[1],
+        recipesV[0], recipesV[1], recipesV[2], recipesV[3],
+    )
     top = personalRecommendations[:10]
     metas = fetchRecipeMetas(top)
     result = [
