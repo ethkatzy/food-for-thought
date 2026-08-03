@@ -1,5 +1,4 @@
 from ast import literal_eval
-from threading import Thread
 
 import numpy as np
 import pandas as pd
@@ -15,7 +14,6 @@ ingredients = pd.read_json("data/recipes_processed_key.json")["ingredients"]
 def parseReviews(userID, interactions, recipes, ingredients, tags):
     data = interactions[interactions["user_id"] == userID]
     data = data.merge(recipes, left_on="recipe_id", right_on="id")
-    print(data["name"].head(15))
     personalIngredients = np.array([0] * len(ingredients), dtype=np.float32)
     ingredientsIncremented = np.array([0] * len(ingredients), dtype=np.uint16)
     personalTags = np.array([0] * len(tags), dtype=np.float32)
@@ -68,7 +66,7 @@ def vectorizeRecipes(recipes, ingredients, tags):
 
 def generateRecommendations(userID, recipes, personalIngredients, personalTags, recipeIngredientVectors,
                             recipeTagVectors, nIngredients, nTags):
-    iRatings = recipeIngredientVectors.T.dot(personalIngredients) / nIngredients
+    iRatings = recipeIngredientVectors.T.dot(personalIngredients) / np.maximum(nIngredients, np.array([1] * len(nIngredients)))
     tRatings = recipeTagVectors.T.dot(personalTags) / np.maximum(nTags, np.array([1] * len(nTags)))
     ratings = (iRatings + tRatings) / 2
     recommend = np.argsort(ratings)[::-1][:25]
@@ -129,11 +127,9 @@ def process():
     return jsonify({'Top recommendations': result})
 
 
-# Run Flask in a separate thread
 def run_app():
     app.run(host='0.0.0.0', port=5002)
 
 
-# Start Flask server in a separate thread
-thread = Thread(target=run_app)
-thread.start()
+if __name__ == "__main__":
+    run_app()

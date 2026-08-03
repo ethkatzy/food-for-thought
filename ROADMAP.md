@@ -123,34 +123,20 @@ don't remember.
 Small but real correctness and robustness gaps found while reading
 `app.py`:
 
-- [ ] `generateRecommendations` divides by `nIngredients` with no
+- [x] `generateRecommendations` divides by `nIngredients` with no
       zero-guard (only `nTags` is protected via `np.maximum(nTags, 1)`) — a
       recipe with zero listed ingredients would produce `NaN`/`inf` and could
       poison the ranking.
-- [ ] `/process` does zero input validation: a non-numeric `user_id`, a
-      `user_id` with no interactions, or a user with fewer than 10 candidate
-      recommendations will throw an unhandled exception (the `result` loop
-      hardcodes `range(10)` against a list that isn't guaranteed to have 10
-      items) and return a raw Flask 500 page.
-- [ ] Flask is started unconditionally at import time in a background thread
+      Done — `nIngredients` now guarded the same way as `nTags`.
+- [x] Flask is started unconditionally at import time in a background thread
       (`Thread(target=run_app).start()` at module scope) rather than behind
       `if __name__ == "__main__":` — looks like it was written to run in a
       notebook/Colab cell. Fine there, awkward for a normal script/deploy
       target; worth switching to a standard entrypoint.
-- [ ] Leftover `print(data["name"].head(15))` debug line in `parseReviews`.
-- [ ] `/` returns a hardcoded HTML string instead of `render_template` (a
-      `templates/` folder is imported via `render_template` but doesn't
-      exist) — becomes moot once there's a real frontend, but worth knowing
-      the current handler is dead-code-adjacent.
-- [ ] `/process` returns JSON only, with recommendation scores and URLs
-      baked into a single formatted string per item — fine for a JSON API
-      consumed by a new frontend, but will need restructuring into a proper
-      JSON schema (list of `{id, name, score, url}` objects) for anything to
-      consume it cleanly.
-- [ ] Consider whether `recipesV` (built once at import time over all 232k
-      recipes) and the two large DataFrames should be lazily loaded / cached
-      rather than loaded at import — matters more once this is deployed
-      somewhere with limited memory (see hosting section).
+      Done — replaced with `if __name__ == "__main__": run_app()`; unused
+      `Thread` import removed.
+- [x] Leftover `print(data["name"].head(15))` debug line in `parseReviews`.
+      Done — removed.
 
 ## 4. Data
 
@@ -218,6 +204,31 @@ Once that's decided:
       current in-memory, load-everything-at-import approach fits the host's
       memory/free-tier limits, or whether it needs to switch to precomputed/
       cached vectors.
+
+### 5a. `/` and `/process` items to revisit once the frontend changes
+
+Moved out of §3 — these were noted against the *current* `/` and `/process`
+handlers, and may be moot or need re-evaluating once the real frontend
+(above) replaces them.
+
+- [ ] `/process` does zero input validation: a non-numeric `user_id`, a
+      `user_id` with no interactions, or a user with fewer than 10 candidate
+      recommendations will throw an unhandled exception (the `result` loop
+      hardcodes `range(10)` against a list that isn't guaranteed to have 10
+      items) and return a raw Flask 500 page.
+- [ ] `/` returns a hardcoded HTML string instead of `render_template` (a
+      `templates/` folder is imported via `render_template` but doesn't
+      exist) — becomes moot once there's a real frontend, but worth knowing
+      the current handler is dead-code-adjacent.
+- [ ] `/process` returns JSON only, with recommendation scores and URLs
+      baked into a single formatted string per item — fine for a JSON API
+      consumed by a new frontend, but will need restructuring into a proper
+      JSON schema (list of `{id, name, score, url}` objects) for anything to
+      consume it cleanly.
+- [ ] Consider whether `recipesV` (built once at import time over all 232k
+      recipes) and the two large DataFrames should be lazily loaded / cached
+      rather than loaded at import — matters more once this is deployed
+      somewhere with limited memory (see hosting section above).
 
 ## 6. Nice-to-haves (once the above is solid)
 
