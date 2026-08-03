@@ -61,6 +61,14 @@ _RATED_RECIPES_LIMIT = 200
 
 
 def parseReviews(userID, interactions, recipes, ingredients, tags):
+    """Build per-user ingredient/tag preference vectors from rating history.
+
+    Each entry ends up as the running mean of the ratings the user gave
+    recipes containing that ingredient/tag. The mean is computed
+    incrementally (rather than summed then divided) so a single pass over
+    the user's ratings is enough, with no separate counts array to zip
+    against afterwards.
+    """
     data = interactions[interactions["user_id"] == userID]
     data = data.merge(recipes, left_on="recipe_id", right_on="id")
     personalIngredients = np.zeros(len(ingredients), dtype=np.float32)
@@ -86,6 +94,14 @@ def parseReviews(userID, interactions, recipes, ingredients, tags):
 
 def generateRecommendations(userID, recipes, personalIngredients, personalTags,
                             recipeIngredientVectors, recipeTagVectors, nIngredients, nTags):
+    """Score every recipe against a user's preference vectors and rank them.
+
+    Scores are divided by each recipe's ingredient/tag count so recipes with
+    long ingredient lists don't win purely on volume, then the two per-recipe
+    scores are averaged. `nIngredients`/`nTags` are floored at 1 (via
+    `np.maximum`) since a recipe with zero listed ingredients or tags would
+    otherwise divide by zero and poison the ranking with NaN/inf.
+    """
     iRatings = recipeIngredientVectors.T.dot(personalIngredients) / np.maximum(
         nIngredients, np.ones(len(nIngredients), dtype=np.int64)
     )

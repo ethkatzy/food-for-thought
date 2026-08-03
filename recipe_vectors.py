@@ -14,6 +14,16 @@ def load_raw_data():
 
 
 def vectorizeRecipes(recipes, ingredients, tags):
+    """Build sparse (ingredient/tag x recipe) membership matrices for all recipes.
+
+    Built as `scipy.sparse` CSR matrices rather than dense NumPy arrays
+    because the ingredient/tag vocab (thousands of entries) x ~232k recipes
+    is mostly zeros — each recipe only uses a handful of ingredients/tags,
+    so a dense matrix would be orders of magnitude larger for no benefit.
+    This is expensive enough (a Python loop over every recipe) that it's run
+    once offline by `build_recipe_vectors.py` and cached, rather than redone
+    on every app startup.
+    """
     parsedIngredients = recipes["ingredients"].apply(json.loads)
     parsedTags = recipes["tags"].apply(json.loads)
 
